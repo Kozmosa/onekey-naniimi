@@ -258,6 +258,134 @@
             }
         }
     </style>
+
+    <!-- 使用 ESM 引入 jieba.js -->
+    <script type="module">
+        import { init, cut, ready } from "https://unpkg.com/@congcongcai/jieba.js@^0.0.3/index.js";
+
+        // 标记初始化状态
+        window.jiebaReady = false;
+
+        // 概率设置
+        window.getProbabilities = function () {
+            return {
+                single: parseInt(document.getElementById('single-prob').value, 10) / 100,
+                double: parseInt(document.getElementById('double-prob').value, 10) / 100,
+                triple: parseInt(document.getElementById('triple-prob').value, 10) / 100
+            };
+        };
+
+        // 随机单字替换
+        window.replaceSingleChar = function () {
+            const chars = ['何', '意', '味'];
+            return chars[Math.floor(Math.random() * chars.length)];
+        };
+
+        // 仅中文判断（基本区间）
+        window.isAllChinese = function (str) {
+            for (let i = 0; i < str.length; i++) {
+                const code = str.charCodeAt(i);
+                if (code < 0x4E00 || code > 0x9FFF) {
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        // 转换逻辑：使用 jieba.js 的 cut 分词
+        window.convertText = function () {
+            if (!window.jiebaReady) {
+                alert('分词库尚未初始化，请稍候...');
+                return;
+            }
+
+            const inputText = document.getElementById('input-text').value;
+            if (!inputText.trim()) {
+                alert('请输入文本');
+                return;
+            }
+
+            const probs = window.getProbabilities();
+            const segments = cut(inputText); // 使用 jieba.js 分词
+            const result = [];
+
+            for (const segment of segments) {
+                // 仅处理纯中文的分词
+                if (!window.isAllChinese(segment)) {
+                    result.push(segment);
+                    continue;
+                }
+
+                const length = segment.length;
+
+                if (length === 1) {
+                    if (Math.random() < probs.single) {
+                        result.push(window.replaceSingleChar());
+                    } else {
+                        result.push(segment);
+                    }
+                } else if (length === 2) {
+                    if (Math.random() < probs.double) {
+                        result.push('意味');
+                    } else {
+                        result.push(segment);
+                    }
+                } else if (length === 3) {
+                    if (Math.random() < probs.triple) {
+                        result.push('何意味');
+                    } else {
+                        result.push(segment);
+                    }
+                } else {
+                    // 其他长度保持不变
+                    result.push(segment);
+                }
+            }
+
+            document.getElementById('output-text').value = result.join('');
+        };
+
+        // 设置弹窗
+        window.openSettings = function () {
+            document.getElementById('settings-modal').classList.add('active');
+        };
+
+        window.closeSettings = function () {
+            document.getElementById('settings-modal').classList.remove('active');
+        };
+
+        window.updateSliderValue = function (sliderId, valueId) {
+            const value = document.getElementById(sliderId).value;
+            document.getElementById(valueId).textContent = value + '%';
+        };
+
+        // 页面加载后再触发初始化和事件绑定
+        window.addEventListener('DOMContentLoaded', () => {
+            const loading = document.getElementById('loading');
+            if (loading) loading.style.display = 'block';
+
+            // 初始化 jieba.js（加载 wasm 后 init）
+            ready().then(() => {
+                init(); // 使用默认内置词典
+                window.jiebaReady = true;
+                if (loading) loading.style.display = 'none';
+            });
+
+            // 点击遮罩关闭设置面板
+            document.getElementById('settings-modal').addEventListener('click', function (e) {
+                if (e.target === this) {
+                    window.closeSettings();
+                }
+            });
+
+            // Ctrl+Enter 触发转换
+            document.getElementById('input-text').addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                    window.convertText();
+                }
+            });
+        });
+    </script>
 </head>
 <body>
     <div class="container">
@@ -278,12 +406,12 @@
             <button class="settings-btn" onclick="openSettings()">设置</button>
         </div>
 
-        <div id="loading" class="loading" style="display: none;">
+        <div id="loading" class="loading">
             正在初始化分词库，请稍候...
         </div>
     </div>
 
-    <!-- Settings Modal -->
+    <!-- 设置弹窗 -->
     <div id="settings-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -319,191 +447,5 @@
             </div>
         </div>
     </div>
-
-    <!-- Include nodejieba WebAssembly version or use a simple segmentation approach -->
-    <script>
-        // Simple Chinese word segmentation implementation
-        // For a production app, you'd use a library like jieba, but for a static page,
-        // we'll implement a basic dictionary-based segmentation
-
-        // This is a simplified segmentation that works client-side
-        class ChineseSegmenter {
-            constructor() {
-                // Common 2-character and 3-character Chinese words
-                this.dict3 = new Set([
-                    '中国人', '日本人', '美国人', '图书馆', '计算机', '博物馆', 
-                    '大学生', '运动会', '奥运会', '世界杯', '篮球队', '足球队'
-                ]);
-                
-                this.dict2 = new Set([
-                    '今天', '明天', '昨天', '天气', '真好', '我们', '一起', '公园',
-                    '中国', '日本', '美国', '世界', '你好', '再见', '谢谢', '不是',
-                    '什么', '为什么', '怎么', '哪里', '这里', '那里', '时候', '时间',
-                    '地方', '朋友', '学生', '老师', '医生', '警察', '工人', '农民',
-                    '喜欢', '讨厌', '认为', '觉得', '知道', '明白', '理解', '学习',
-                    '工作', '生活', '吃饭', '睡觉', '起床', '上班', '下班', '回家',
-                    '漂亮', '美丽', '帅气', '聪明', '愚蠢', '勇敢', '懦弱', '善良',
-                    '东西', '事情', '问题', '办法', '方法', '机会', '可能', '一定',
-                    '应该', '必须', '可以', '能够', '愿意', '希望', '想要', '需要'
-                ]);
-            }
-
-            // Check if a character is Chinese
-            isChinese(char) {
-                const code = char.charCodeAt(0);
-                return code >= 0x4E00 && code <= 0x9FFF;
-            }
-
-            // Forward maximum matching with dictionary
-            segment(text) {
-                const result = [];
-                let i = 0;
-
-                while (i < text.length) {
-                    const char = text[i];
-                    
-                    // If not Chinese, add as-is
-                    if (!this.isChinese(char)) {
-                        result.push(char);
-                        i++;
-                        continue;
-                    }
-
-                    // Try to match 3-character words first
-                    if (i + 3 <= text.length) {
-                        const word3 = text.substr(i, 3);
-                        if (this.dict3.has(word3)) {
-                            result.push(word3);
-                            i += 3;
-                            continue;
-                        }
-                    }
-
-                    // Try to match 2-character words
-                    if (i + 2 <= text.length) {
-                        const word2 = text.substr(i, 2);
-                        if (this.dict2.has(word2)) {
-                            result.push(word2);
-                            i += 2;
-                            continue;
-                        }
-                    }
-
-                    // Otherwise, treat as single character
-                    result.push(char);
-                    i++;
-                }
-
-                return result;
-            }
-        }
-
-        const segmenter = new ChineseSegmenter();
-
-        // Get probability settings
-        function getProbabilities() {
-            return {
-                single: parseInt(document.getElementById('single-prob').value) / 100,
-                double: parseInt(document.getElementById('double-prob').value) / 100,
-                triple: parseInt(document.getElementById('triple-prob').value) / 100
-            };
-        }
-
-        // Random replacement for single character
-        function replaceSingleChar() {
-            const chars = ['何', '意', '味'];
-            return chars[Math.floor(Math.random() * chars.length)];
-        }
-
-        // Check if string contains only Chinese characters
-        function isAllChinese(str) {
-            for (let i = 0; i < str.length; i++) {
-                const code = str.charCodeAt(i);
-                if (code < 0x4E00 || code > 0x9FFF) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        // Convert text based on segmentation
-        function convertText() {
-            const inputText = document.getElementById('input-text').value;
-            if (!inputText.trim()) {
-                alert('请输入文本');
-                return;
-            }
-
-            const probs = getProbabilities();
-            const segments = segmenter.segment(inputText);
-            const result = [];
-
-            for (const segment of segments) {
-                // Only process Chinese words
-                if (!isAllChinese(segment)) {
-                    result.push(segment);
-                    continue;
-                }
-
-                const length = segment.length;
-                
-                if (length === 1) {
-                    // Single character - replace with random char from [何, 意, 味]
-                    if (Math.random() < probs.single) {
-                        result.push(replaceSingleChar());
-                    } else {
-                        result.push(segment);
-                    }
-                } else if (length === 2) {
-                    // Two-character word - replace with "意味"
-                    if (Math.random() < probs.double) {
-                        result.push('意味');
-                    } else {
-                        result.push(segment);
-                    }
-                } else if (length === 3) {
-                    // Three-character word - replace with "何意味"
-                    if (Math.random() < probs.triple) {
-                        result.push('何意味');
-                    } else {
-                        result.push(segment);
-                    }
-                } else {
-                    // Longer words - keep as-is
-                    result.push(segment);
-                }
-            }
-
-            document.getElementById('output-text').value = result.join('');
-        }
-
-        // Settings modal functions
-        function openSettings() {
-            document.getElementById('settings-modal').classList.add('active');
-        }
-
-        function closeSettings() {
-            document.getElementById('settings-modal').classList.remove('active');
-        }
-
-        function updateSliderValue(sliderId, valueId) {
-            const value = document.getElementById(sliderId).value;
-            document.getElementById(valueId).textContent = value + '%';
-        }
-
-        // Close modal when clicking outside
-        document.getElementById('settings-modal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeSettings();
-            }
-        });
-
-        // Allow Enter key in input to trigger conversion (Ctrl+Enter for new line)
-        document.getElementById('input-text').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && e.ctrlKey) {
-                convertText();
-            }
-        });
-    </script>
 </body>
 </html>
